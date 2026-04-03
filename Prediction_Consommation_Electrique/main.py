@@ -4,93 +4,66 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from datetime import datetime
-
+import pandas as pd
 from scripts.data_pipeline import EnergyDataPipeline
-from scripts.config import ConfigPresets, DEFAULT_CONFIG
+from scripts.feature_engineering import create_feature_dataset
+from scripts.modeling import run_complete_modeling_pipeline
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-
-def setup_logging(log_level, logs_dir):
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    log_file = logs_dir / f"pipeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    
+def setup_logging(verbose: bool) -> logging.Logger:
     logging.basicConfig(
-        level=getattr(logging, log_level),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
     )
-    return logging.getLogger(__name__)
+    return logging.getLogger("pipeline")
 
 
 def main():
     if Path.cwd() != SCRIPT_DIR:
         os.chdir(SCRIPT_DIR)
-    
-    parser = argparse.ArgumentParser(description="Energy prediction pipeline")
-    parser.add_argument('--config', choices=['default', 'development', 'production'], default='default')
-    parser.add_argument('--meteo-path', type=Path)
-    parser.add_argument('--rte-path', type=Path)
-    parser.add_argument('--output-path', type=Path)
-    parser.add_argument('--no-intermediate', action='store_true')
-    parser.add_argument('--verbose', action='store_true')
-    parser.add_argument('--output-format', choices=['csv', 'parquet', 'both'], default='both')
+
+    parser = argparse.ArgumentParser(description="Pipeline prediction consommation electrique")
+    parser.add_argument("--meteo-path", type=Path, default=SCRIPT_DIR / "data" / "Data_Climat")
+    parser.add_argument("--rte-path", type=Path, default=SCRIPT_DIR / "data" / "Data_eCO2")
+    parser.add_argument("--output-path", type=Path, default=SCRIPT_DIR / "output")
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--mode",
+        choices=["prepare", "train_predict", "full"],
+        default="full",
+        help="prepare: dataset nettoye, train_predict: modele sur dataset existant, full: pipeline complet",
+    )
     args = parser.parse_args()
-    
-    if args.config == 'development':
-        config = ConfigPresets.development()
-    elif args.config == 'production':
-        config = ConfigPresets.production()
-    else:
-        config = DEFAULT_CONFIG
-    
-    if args.meteo_path:
-        config.meteo.data_dir = args.meteo_path
-    if args.rte_path:
-        config.rte.data_dir = args.rte_path
-    if args.output_path:
-        config.output_dir = args.output_path
-    
-    config.save_intermediate = not args.no_intermediate
-    config.verbose = args.verbose
-    config.output_format = args.output_format
-    
-    logger = setup_logging(config.log_level, config.logs_dir)
-    
-    logger.info("Starting energy prediction pipeline")
-    logger.info(f"Config: {args.config}")
-    logger.info(f"Meteo path: {config.meteo.data_dir}")
-    logger.info(f"RTE path: {config.rte.data_dir}")
-    logger.info(f"Output: {config.output_dir}")
-    
+
+    logger = setup_logging(args.verbose)
+    output_dir = Path(args.output_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     try:
-        pipeline = EnergyDataPipeline(
-            meteo_path=config.meteo.data_dir,
-            rte_path=config.rte.data_dir,
-            output_path=config.output_dir
-        )
-        
-        df_final = pipeline.run(save_intermediate=config.save_intermediate)
-        
-        if config.output_format in ['csv', 'both']:
-            output_csv = config.output_dir / "dataset_final_clean.csv"
-            df_final.to_csv(output_csv, index=False)
-            logger.info(f"CSV saved: {output_csv}")
-        
-        if config.output_format in ['parquet', 'both']:
-            output_parquet = config.output_dir / "dataset_final_clean.parquet"
-            df_final.to_parquet(output_parquet, compression='snappy', index=False)
-            logger.info(f"Parquet saved: {output_parquet}")
-        
-        logger.info(f"Done. Shape: {df_final.shape}")
+        dataset_file = output_dir / "dataset_final_clean.csv"
+
+        if args.mode in {"prepare", "full"}:
+            pipeline = EnergyDataPipeline(args.meteo_path, args.rte_path, output_dir)
+            df_clean = pipeline.run(save_intermediate=False)
+            df_clean.to_csv(dataset_file, index=False)
+            logger.info("Saved cleaned dataset: %s", dataset_file)
+
+        if args.mode in {"train_predict", "full"}:
+            if not dataset_file.exists():
+                raise FileNotFoundError(
+                    f"{dataset_file} introuvable. Lance d'abord --mode prepare ou --mode full."
+                )
+            df_clean = create_feature_dataset(pd.read_csv(dataset_file), None)
+            predictions_df, _ = run_complete_modeling_pipeline(df_clean, output_dir)
+            predictions_df.to_csv(output_dir / "predictions.csv", index=False)
+            logger.info("Saved predictions: %s", output_dir / "predictions.csv")
+            logger.info("Saved feature importance: %s", output_dir / "feature_importance.csv")
+
+        logger.info("Pipeline termine. Sorties principales dans %s", output_dir)
         return 0
-        
     except Exception as e:
-        logger.error(f"Error: {e}", exc_info=True)
+        logger.error("Erreur pipeline: %s", e, exc_info=True)
         return 1
 
 
