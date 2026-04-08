@@ -1,20 +1,7 @@
-"""
-Module de modélisation prédictive pour la consommation électrique.
-
-Utilise XGBoost pour prédire la consommation avec :
-- Séparation temporelle stricte (pas de data leakage)
-- Train: 2024-2025, Test: 2025-2026
-- Validation: Split chronologique
-- Hyperparamètres optimisés pour séries temporelles
-
-Author: Senior Data Scientist
-Created: 2026-04-03
-"""
-
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import Tuple, Dict, Optional, List
+from typing import Tuple, Dict, Optional
 from datetime import datetime
 import logging
 
@@ -22,32 +9,23 @@ import xgboost as xgb
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# Configuration du logger
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 
 
 class TemporalModelingPipeline:
-    """Pipeline de modélisation avec séparation temporelle."""
-    
     def __init__(self, 
                  df: pd.DataFrame,
                  target_col: str = 'consommation_mwh',
                  date_col: str = 'date',
                  train_end_date: str = '2025-06-30',
                  test_start_date: str = '2025-07-01'):
-        """
-        Initialise le pipeline de modélisation.
-        
-        IMPORTANT: Séparation temporelle stricte pour éviter data leakage!
-        
-        Args:
-            df: DataFrame avec features
-            target_col: Colonne cible à prédire
-            date_col: Colonne date
+        self.df = df
+        self.target_col = target_col
+        self.date_col = date_col
+        self.train_end_date = train_end_date
+        self.test_start_date = test_start_date
+        self.model = None
+        self.scaler = StandardScaler()
             train_end_date: Date de fin de l'ensemble d'entraînement
             test_start_date: Date de début de l'ensemble de test
         """
