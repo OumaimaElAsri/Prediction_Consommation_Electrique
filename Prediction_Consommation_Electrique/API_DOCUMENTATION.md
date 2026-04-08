@@ -1,328 +1,139 @@
-# API Documentation - Energy Prediction Pipeline
+# API Reference
 
-## 📖 Core Modules
+## Core Classes
 
-### data_pipeline.py
-
-#### EnergyDataPipeline
-Main orchestration class for the complete pipeline.
+### EnergyDataPipeline
+Main pipeline class for data processing.
 
 ```python
+from scripts.data_pipeline import EnergyDataPipeline
+
 pipeline = EnergyDataPipeline(
-    meteo_path: Path,
-    rte_path: Path,
-    output_path: Path
+    meteo_path=Path("data/Data_Climat"),
+    rte_path=Path("data/Data_eCO2"),
+    output_path=Path("output")
 )
 
-# Run full pipeline
 df = pipeline.run(save_intermediate=True)
 ```
 
-**Methods:**
-- `run(save_intermediate=True)` - Execute complete pipeline
-
----
-
-#### MeteoDataPipeline
-Handles meteorological data processing.
+### MeteoDataPipeline
+Load and clean meteorological data.
 
 ```python
-meteo = MeteoDataPipeline(data_path)
+from scripts.data_pipeline import MeteoDataPipeline
+
+meteo = MeteoDataPipeline(Path("data/Data_Climat"))
 df = meteo.load_and_clean_meteo()
 ```
 
-**Methods:**
-- `load_and_clean_meteo()` - Load and clean all meteorological files
-
----
-
-#### RTEDataPipeline
-Handles RTE energy mix data.
+### RTEDataPipeline
+Load and clean RTE energy data.
 
 ```python
-rte = RTEDataPipeline(data_path, skiprows=3)
+from scripts.data_pipeline import RTEDataPipeline
+
+rte = RTEDataPipeline(Path("data/Data_eCO2"), skiprows=3)
 df = rte.load_and_clean_rte()
 ```
 
-**Methods:**
-- `load_and_clean_rte()` - Load and clean RTE data
-
----
-
-#### DataFusionPipeline
-Merges meteorological and RTE datasets.
+### FeatureEngineer
+Create predictive features from raw data.
 
 ```python
-df_merged = DataFusionPipeline.merge_datasets(
-    df_meteo,
-    df_rte,
-    meteo_date_col='date',
-    rte_date_col='date',
-    how='inner'
-)
-```
+from scripts.feature_engineering import FeatureEngineer
 
-**Static Methods:**
-- `merge_datasets()` - Merge two DataFrames on date
-
----
-
-#### DataQualityPipeline
-Data validation and cleaning.
-
-```python
-df_clean = DataQualityPipeline.handle_missing_values(
-    df,
-    numeric_interpolation='linear',
-    categorical_fill='forward'
-)
-
-outliers = DataQualityPipeline.detect_and_report_outliers(df)
-```
-
-**Static Methods:**
-- `handle_missing_values()` - Interpolation and filling
-- `detect_and_report_outliers()` - IQR-based outlier detection
-
----
-
-### feature_engineering.py
-
-#### FeatureEngineer
-Creates 25+ features from raw data.
-
-```python
 engineer = FeatureEngineer(df)
 df_features = engineer.create_all_features()
 ```
 
-**Features Created:**
-- **Temporal**: Hour, day_of_week, month, season, day_of_year
-- **Lag**: Previous 1, 3, 6, 24, 168 hour values
-- **Rolling**: 3, 6, 24 hour rolling means/stds
-- **Meteorological**: Temperature transformations, interactions
-- **Fourier**: Seasonal decomposition features
+Features created:
+- Temporal: hour, day_of_week, month, season
+- Lag: previous 1, 3, 6, 24, 168 hours
+- Rolling: 3, 6, 24 hour statistics
+- Meteorological: transformations and interactions
 
----
-
-### modeling.py
-
-#### EnergyModel
+### EnergyModel
 XGBoost model for predictions.
 
 ```python
+from scripts.modeling import EnergyModel
+
 model = EnergyModel()
 model.train(X_train, y_train)
 predictions = model.predict(X_test)
 metrics = model.evaluate(y_test, predictions)
 ```
 
-**Methods:**
-- `train(X, y)` - Train XGBoost model
-- `predict(X)` - Make predictions
-- `evaluate(y_true, y_pred)` - Calculate metrics
+## Main Scripts
 
----
+### main.py
+Execute complete pipeline.
 
-### config.py
+```bash
+python main.py
+python main.py --config production
+python main.py --output-format parquet
+```
 
-#### ConfigPresets
+### predict.py
+Generate predictions.
+
+```bash
+python predict.py
+python predict.py --meteo-path data/Data_Climat
+```
+
+### run_demo.py
+Demo with test data.
+
+```bash
+python run_demo.py
+```
+
+## Configuration
+
+### ConfigPresets
 Predefined configurations.
 
 ```python
+from scripts.config import ConfigPresets
+
 config = ConfigPresets.production()
 config = ConfigPresets.development()
 ```
 
-#### PipelineConfig
-Customizable configuration object.
+### PipelineConfig
+Custom configuration.
 
 ```python
+from scripts.config import PipelineConfig
+
 config = PipelineConfig()
 config.quality.numeric_interpolation = 'polynomial'
 config.quality.iqr_multiplier = 2.0
 ```
 
----
+## Data Formats
 
-## 🎯 Main Scripts
+Input:
+- Meteorological: CSV with dept code, date, temperature, humidity, etc.
+- RTE: XLS with daily energy mix percentages
 
-### main.py
-Execute full pipeline end-to-end.
+Output:
+- CSV or Parquet with merged data + engineered features
+- Predictions with error metrics (MAE, RMSE, MAPE, R²)
 
-```bash
-python main.py
-```
+## Key Methods
 
-**Output:**
-- Cleaned and merged dataset to `output/`
+`DataQualityPipeline`:
+- `handle_missing_values()` - Interpolation and filling
+- `detect_and_report_outliers()` - IQR-based detection
 
----
-
-### predict.py
-Generate predictions using trained model.
-
-```bash
-python predict.py
-```
-
-**Output:**
-- Predictions CSV with confidence intervals
+`DataFusionPipeline`:
+- `merge_datasets()` - Merge on date columns
 
 ---
 
-### run_demo.py
-Run pipeline with test data (memory-efficient).
+Last updated: April 2026
 
-```bash
-python run_demo.py --keep-demo-data
-```
-
-**Output:**
-- Demo predictions in `demo_data/`
-
----
-
-### streamlit_dashboard.py
-Interactive dashboard for visualization.
-
-```bash
-streamlit run streamlit_dashboard.py
-```
-
-**Pages:**
-1. **Accueil** (Home) - Project overview, metrics
-2. **Qualité des Données** (Data Quality) - Data cleaning stats
-3. **Analyse Exploratoire** (EDA) - Maps, correlations, distributions
-4. **Prédictions** (Predictions) - Forecast visualization, error analysis
-
----
-
-## 📊 Data Schema
-
-### Meteorological Data
-```
-date: AAAAMMJJHH format (year-month-day-hour)
-code_dept: Department code (e.g., '75')
-temperature: Temperature in °C
-humidity: Humidity %
-wind_speed: Wind speed
-pressure: Atmospheric pressure
-precipitation: Precipitation mm
-```
-
-### RTE Data
-```
-date: Daily date
-renewable: Renewable energy %
-nuclear: Nuclear energy %
-fossil: Fossil fuel %
-other: Other sources %
-```
-
-### Merged Output
-```
-date: Datetime
-code_dept: Department code
-[All meteorological columns]
-[All RTE columns]
-[25+ Engineered features]
-```
-
----
-
-## 🔧 Configuration Parameters
-
-### Quality Settings
-```python
-config.quality.numeric_interpolation = 'linear' | 'polynomial' | 'spline'
-config.quality.interpolation_limit = 5  # Max consecutive interpolation
-config.quality.categorical_fill = 'forward' | 'backward' | 'mean'
-config.quality.iqr_multiplier = 1.5  # Outlier threshold
-```
-
-### Model Settings
-```python
-config.model.n_estimators = 200
-config.model.max_depth = 8
-config.model.learning_rate = 0.05
-config.model.subsample = 0.8
-```
-
----
-
-## 📈 Performance Metrics
-
-- **MAE** - Mean Absolute Error
-- **RMSE** - Root Mean Squared Error
-- **MAPE** - Mean Absolute Percentage Error
-- **R²** - Coefficient of Determination
-
----
-
-## ⚠️ Error Handling
-
-All modules include logging and error handling:
-
-```python
-import logging
-logger = logging.getLogger(__name__)
-logger.info("Processing data...")
-logger.warning("Missing data detected")
-logger.error("Pipeline failed")
-```
-
----
-
-## 💾 File I/O
-
-### Input Data
-```
-data/
-├── Data_Climat/
-│   └── H_*.csv  (15 department files)
-├── Data_eCO2/
-│   └── eCO2mix_RTE_tempo_*.csv
-└── Departements/
-    └── departements.geojson
-```
-
-### Output Files
-```
-output/
-├── features_engineered.csv
-├── predictions.csv
-└── model_metadata.json
-```
-
----
-
-## 🚀 Quick Integration Example
-
-```python
-from pathlib import Path
-from scripts.data_pipeline import EnergyDataPipeline
-from scripts.modeling import EnergyModel
-
-# Step 1: Prepare data
-pipeline = EnergyDataPipeline(
-    meteo_path=Path("data/Data_Climat"),
-    rte_path=Path("data/Data_eCO2"),
-    output_path=Path("output")
-)
-df = pipeline.run()
-
-# Step 2: Train model
-model = EnergyModel()
-X = df.drop('consumption', axis=1)
-y = df['consumption']
-model.train(X, y)
-
-# Step 3: Predict
-predictions = model.predict(X)
-```
-
----
-
-**API Version**: 1.0  
-**Last Updated**: April 2026

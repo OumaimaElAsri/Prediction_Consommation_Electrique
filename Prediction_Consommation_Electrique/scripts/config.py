@@ -1,61 +1,29 @@
-"""
-Configuration centralisée du pipeline énergétique.
-
-Ce fichier contient toutes les configurations nécessaires pour 
-l'exécution du pipeline, facilitant la maintenance et les changements.
-
-Author: Data Engineering Team
-Created: 2026-04-03
-"""
-
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
 
-# Chemins de base
 PROJECT_ROOT = Path(__file__).parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
-# Chemins de données
 METEO_DATA_DIR = DATA_DIR / "Data_Climat"
 RTE_DATA_DIR = DATA_DIR / "Data_eCO2"
 
-# Créer les répertoires s'ils n'existent pas
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @dataclass
 class MeteoConfig:
-    """Configuration pour le traitement des données météorologiques."""
-    
-    # Répertoire source
     data_dir: Path = METEO_DATA_DIR
-    
-    # Pattern de fichier pour identifier les fichiers à traiter
     file_pattern: str = "*.csv"
-    
-    # Pattern regex pour extraire le code département
     dept_code_pattern: str = r'H_(\d{2,3})_'
-    
-    # Colonnes à utiliser (None = toutes les colonnes)
     columns_to_keep: Optional[list] = None
-    
-    # Encodage des fichiers
     encoding: str = 'utf-8'
-    
-    # Séparateur des CSV
     delimiter: str = ','
-    
-    # Nom de la colonne temporelle
     date_column: str = 'date'
-    
-    # Format de la date (None = inférer automatiquement)
     date_format: Optional[str] = None
-    
-    # Colonnes à convertir en type datetime
     datetime_columns: list = None
     
     def __post_init__(self):
@@ -65,18 +33,9 @@ class MeteoConfig:
 
 @dataclass
 class RTEConfig:
-    """Configuration pour le traitement des données RTE."""
-    
-    # Répertoire source
     data_dir: Path = RTE_DATA_DIR
-    
-    # Pattern de fichier pour identifier les fichiers Excel
     file_pattern: str = "*.xls*"
-    
-    # Nombre de lignes de métadonnées à sauter au début
     skiprows: int = 3
-    
-    # Feuille Excel à lire (None = première feuille)
     sheet_name: Optional[int] = 0
     
     # Colonnes à utiliser (None = toutes les colonnes)

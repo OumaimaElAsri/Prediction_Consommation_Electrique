@@ -1,54 +1,23 @@
 #!/usr/bin/env python3
-"""
-Script DÉMO: Pipeline End-to-End avec données de test uniquement
 
-Ceci est une démonstration du pipeline complet utilisant uniquement les données de test
-générées (H_13, H_69, H_75 + RTE test data), ce qui permet une exécution rapide sans
-problèmes de mémoire.
-
-Utilisation:
-    python run_demo.py                  # Exécute le pipeline de démo
-    python run_demo.py --verbose        # Mode verbose
-
-Author: Data Engineering Team
-Created: 2026-04-05
-"""
-
-import argparse
-import sys
 import os
 import shutil
 from pathlib import Path
 import logging
 
-# Force UTF-8 encoding for output
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-
-# Déterminer le répertoire de base
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-# Configuration logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
 def setup_demo_environment():
-    """Crée un environnement de démo avec seulement les données de test."""
-    
-    logger.info("=" * 80)
-    logger.info("PRÉPARATION ENVIRONNEMENT DÉMO")
-    logger.info("=" * 80)
+    logger.info("Setting up demo environment...")
     
     data_dir = SCRIPT_DIR / "data"
     meteo_dir = data_dir / "Data_Climat"
     rte_dir = data_dir / "Data_eCO2"
     
-    # Créer répertoire démo
     demo_dir = SCRIPT_DIR / "data_demo"
     demo_meteo = demo_dir / "Data_Climat_Demo"
     demo_rte = demo_dir / "Data_eCO2_Demo"
@@ -57,7 +26,7 @@ def setup_demo_environment():
     demo_meteo.mkdir(exist_ok=True, parents=True)
     demo_rte.mkdir(exist_ok=True, parents=True)
     
-    logger.info(f"\nRépertoire démo: {demo_dir}")
+    logger.info(f"Demo directory: {demo_dir}")
     
     # Copier UNIQUEMENT les fichiers de test
     test_files_meteo = ['H_13_latest-2025-2026.csv', 'H_69_latest-2025-2026.csv', 'H_75_latest-2025-2026.csv']
