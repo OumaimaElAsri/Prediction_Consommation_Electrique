@@ -1,129 +1,84 @@
-# Electricity Consumption Prediction
+# Prediction de consommation electrique
 
-A production-grade machine learning system for predicting electricity consumption across France. Built on 2.8M+ hourly meteorological observations and real-time energy mix data from RTE.
+Ce projet entraine un modele de regression pour predire la consommation electrique a partir des donnees meteo et des donnees RTE.
 
-## The Problem
+## Architecture du projet
 
-French electricity demand varies significantly based on weather conditions, seasons, and time patterns. Utilities need accurate consumption forecasts to balance supply, optimize renewable integration, and manage grid stability. This system predicts consumption with precision across 15 departments covering diverse climate zones.
+### Fichiers principaux
+- `main.py`: point d'entree unique pour executer le pipeline.
+- `scripts/data_pipeline.py`: ingestion, nettoyage, fusion des donnees meteo + RTE.
+- `scripts/feature_engineering.py`: creation des variables explicatives.
+- `scripts/modeling.py`: entrainement XGBoost, predictions et importance des features.
+- `scripts/prediction_pipeline.py`: orchestration complete.
+- `predict.py`: entrainement + prediction a partir d'un dataset nettoye.
+- `run_demo.py`: execution sur un sous-ensemble de donnees.
 
-## How It Works
+### Dossiers
+- `data/Data_Climat/`: fichiers meteo horaires.
+- `data/Data_eCO2/`: fichiers RTE (consommation, production, CO2).
+- `output/`: sorties generees par le pipeline.
 
-The pipeline orchestrates four distinct stages:
+## Etapes de traitement
 
-**Stage 1: Data Ingestion**
-- Loads 15 department-level meteorological datasets (temperature, humidity, wind, pressure)
-- Integrates RTE energy mix data (renewable, nuclear, fossil breakdown)
-- Handles missing values with intelligent interpolation strategies
+1. Chargement des fichiers meteo et RTE.
+2. Conversion des dates, tri chronologique, suppression des doublons.
+3. Fusion meteo/RTE sur la colonne `date`.
+4. Interpolation simple des valeurs numeriques manquantes.
+5. Generation de features:
+   - calendaires (`hour`, `day_of_week`, `month`, `day_of_year`, `is_weekend`)
+   - retard (`consommation_mwh_lag_1`, `lag_2`, `lag_24`)
+   - rolling mean (`window 6`, `window 24`)
+   - interactions (`temp_x_weekend`, `temp_x_humidite`)
+6. Split temporel strict:
+   - train: 70%
+   - validation: 15%
+   - test: 15%
+7. Entrainement du modele XGBoost.
+8. Generation des predictions et calcul des erreurs.
+9. Export des fichiers finaux.
 
-**Stage 2: Feature Engineering**
-- Temporal features: hour, day-of-week, season, holiday patterns
-- Lag features: consumption from previous 1h, 3h, 6h, 24h, 168h periods
-- Rolling statistics: 3h, 6h, 24h moving averages
-- Interaction features: seasonal + temperature combinations
-- Result: 25+ engineered features optimized for time-series prediction
+## Commandes d'execution
 
-**Stage 3: Model Training**
-- XGBoost regressor with cross-validation on time-series splits
-- Separate validation sets to prevent data leakage
-- Tracks metrics: MAE, RMSE, MAPE, R²
-
-**Stage 4: Predictions & Export**
-- Generates consumption forecasts with error bounds
-- Exports to CSV and optimized Parquet format
-- Outputs intermediate datasets for analysis
-
-## Quick Start
+Installation:
 
 ```bash
 pip install -r requirements.txt
-python main.py          # Full pipeline (5-10 minutes)
-python predict.py       # Generate predictions only
-python run_demo.py      # Demo with sample data
 ```
 
-## Project Structure
+Pipeline complet:
 
-```
-scripts/
-  ├── config.py                    # Configuration and paths
-  ├── data_pipeline.py             # Core orchestration (6 classes)
-  ├── data_cleaning.py             # Deduplication and outlier removal
-  ├── data_preprocessing.py        # Type conversion and normalization
-  ├── feature_engineering.py       # 25+ feature creation
-  ├── modeling.py                  # XGBoost implementation
-  ├── prediction_pipeline.py       # End-to-end predictions
-  └── utils.py                     # Logging and helpers
-
-data/
-  ├── Data_Climat/                 # 15 meteorological CSV files
-  ├── Data_eCO2/                   # RTE energy mix data
-  └── Departements/                # GeoJSON boundaries
-
-notebooks/
-  ├── 01_Data_Cleaning_Preprocessing.ipynb
-  └── 02_Pipeline_Complete_Meteo_RTE.ipynb
-
-output/
-  ├── dataset_final_clean.csv      # Production dataset
-  ├── dataset_final_clean.parquet  # Optimized format
-  ├── features_engineered.csv      # With all features
-  └── predictions.csv              # Model output
+```bash
+python main.py --mode full
 ```
 
-## Technical Details
+Preparation seule du dataset nettoye:
 
-**Data Coverage**
-- 2.8M+ hourly observations across 15 French departments
-- Spatial: Alpes-Maritimes to Corsica, complete geographic spread
-- Temporal: Jan 2025 - Dec 2026 (24 months continuous)
+```bash
+python main.py --mode prepare
+```
 
-**Performance Metrics**
-- Train-set R²: 0.92+
-- Validation MAE: 150-200 MW
-- Test MAPE: 8-12%
+Entrainement + prediction a partir de `output/dataset_final_clean.csv`:
 
-**Architecture**
-- Modular design: swap components without refactoring
-- Lazy loading and caching for memory efficiency
-- Separate quality checks and anomaly detection layers
+```bash
+python main.py --mode train_predict
+```
 
-## Configuration
+## Artefacts produits
 
-Edit `scripts/config.py` to customize:
-- Data paths and file patterns
-- Missing value interpolation method (linear, polynomial, forward-fill)
-- Model hyperparameters (learning rate, tree depth, regularization)
-- Output formats (CSV, Parquet, both)
+Les livrables cibles sont:
+- `output/dataset_final_clean.csv`
+- `output/predictions.csv`
+- `output/feature_importance.csv`
 
-## Dependencies
+Fichiers intermediaires (debug / audit):
+- `output/01_meteo_raw.csv`
+- `output/02_rte_raw.csv`
+- `output/03_merged_raw.csv`
+- `output/04_data_final.csv`
+- `output/features_engineered.csv`
 
-Python 3.11+ with:
-- pandas 2.1+, numpy 1.26+
-- xgboost 2.0+, scikit-learn 1.3+
-- matplotlib 3.7+, jupyter 1.0+
+## Lecture rapide des sorties
 
-See `requirements.txt` for complete list.
-
-## Output Files
-
-Generated in `output/`:
-- `dataset_final_clean.csv` - Cleaned, merged dataset ready for modeling
-- `dataset_final_clean.parquet` - Same data, optimized compression
-- `features_engineered.csv` - Dataset with all 25+ engineered features
-- `01_meteo_raw.csv` - Raw meteorological data
-- `02_rte_raw.csv` - Raw energy mix data
-- `03_merged_raw.csv` - Before feature engineering
-- `04_data_final.csv` - After all processing
-
-## Next Steps
-
-- Power BI dashboard for visualization and real-time monitoring
-- REST API wrapper for predictions on-demand
-- Database backend for historical tracking
-- Hyperparameter optimization with Optuna
-- Ensemble models combining XGBoost with LightGBM
-
-## License
-
-Private repository. Contact for access or collaboration.
-
+- `dataset_final_clean.csv`: dataset fusionne et nettoye.
+- `predictions.csv`: date, consommation reelle, consommation predite, erreurs.
+- `feature_importance.csv`: classement des variables les plus importantes pour le modele.
