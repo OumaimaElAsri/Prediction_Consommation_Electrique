@@ -1,4 +1,4 @@
-# ⚡ Prédiction de la Consommation Électrique — Pipeline ML End-to-End
+#  Prédiction de la Consommation Électrique — Pipeline ML End-to-End
 
 <div align="center">
 
